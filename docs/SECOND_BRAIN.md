@@ -43,7 +43,16 @@ which slot.
 
 Chunking splits on markdown headings first, then paragraphs, then hard length.
 Fragments below `min_note_chars` merge forward so no note is too small to stand
-alone; anything over `max_note_chars` is cut at a sentence boundary.
+alone; anything over `max_note_chars` is cut at a sentence boundary. When one
+section yields several notes they are titled `Heading (2/5)`, because a brief
+listing `[1] Stage 3` and `[2] Stage 3` gives the reader no way to tell them apart.
+
+Each note carries a **stable key** — which slice of which source produced it —
+that is independent of its body. Connecting the same source again therefore
+updates the same notes instead of adding copies, which is what makes `learn` and
+`reconnect` safe to re-run. A note whose revision is above 1 has been corrected
+by a human, and re-derivation leaves it alone rather than reinstating what the
+source originally said.
 
 Links carry an origin, in descending trust:
 
@@ -355,8 +364,17 @@ Stated plainly, because a memory system that oversells itself is worse than none
   `examples/second_brain_demo.py` shows exactly this happening.
 - **Stemming is shallow and English/Portuguese only.** `running` does not unify
   with `run`, and other languages get tokenization but no stemming.
+- **Recall does not cross languages.** Portuguese notes answer Portuguese
+  questions and English notes answer English ones, but a Portuguese question
+  against an English note scores ~0.15 and comes back stamped *low confidence*
+  rather than wrong-but-confident. A multilingual embedding model fixes this;
+  the hashed fallback cannot.
 - **Similarity linking is quadratic** in note count per connect pass. Fine for
   thousands of notes on one machine; a real vector index is needed beyond that.
+- **Re-deriving will not revisit a corrected note.** `connect` skips any note
+  whose revision is above 1, because re-reading the original source would undo
+  the correction. If you *want* the source's version back, delete the note and
+  re-connect.
 - **One writer at a time.** SQLite with WAL handles concurrent readers; it is not
   a multi-agent write bus. That is the slot SwarmVault and a managed backend fill.
 
@@ -368,7 +386,7 @@ Stated plainly, because a memory system that oversells itself is worse than none
 pip install pytest && python -m pytest tests/ -q
 ```
 
-153 tests, no network, no model server — `BRAIN_USE_OLLAMA_EMBED=0` is set in
+162 tests, no network, no model server — `BRAIN_USE_OLLAMA_EMBED=0` is set in
 `tests/conftest.py`, and the hashed embedder is deterministic.
 
 The ones worth reading first, because they pin the behaviour the design is
@@ -388,3 +406,5 @@ actually claiming:
 | `test_truncated_urls_are_labelled_not_guessed` | No fabricated repository names |
 | `test_link_scoring_separates_related_from_unrelated` | The link threshold sits in a real, measured gap |
 | `test_a_captured_markdown_file_does_not_donate_its_code_blocks` | Code and tables never become "claims" |
+| `test_connecting_the_same_source_twice_does_not_duplicate_notes` | Re-ingesting does not double the brain |
+| `test_re_derivation_does_not_undo_a_correction` | Re-deriving never resurrects superseded facts |

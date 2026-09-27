@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS sources (
 CREATE TABLE IF NOT EXISTS notes (
     id TEXT PRIMARY KEY,
     source_id TEXT,
+    key TEXT,
     title TEXT NOT NULL,
     body TEXT NOT NULL,
     kind TEXT,
@@ -57,6 +58,7 @@ CREATE TABLE IF NOT EXISTS notes (
     revision INTEGER DEFAULT 1
 );
 CREATE INDEX IF NOT EXISTS idx_notes_source ON notes(source_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_notes_key ON notes(key) WHERE key != '';
 
 CREATE TABLE IF NOT EXISTS links (
     src TEXT NOT NULL,
@@ -158,8 +160,19 @@ class Store:
         self.db.execute("PRAGMA journal_mode=WAL")
         self.db.execute("PRAGMA foreign_keys=ON")
         self.db.executescript(SCHEMA)
+        self._migrate()
         self.fts = self._try_fts()
         self.db.commit()
+
+    def _migrate(self) -> None:
+        """Bring a brain file written by an older version up to date."""
+        columns = {r["name"] for r in self.db.execute("PRAGMA table_info(notes)")}
+        if "key" not in columns:
+            self.db.execute("ALTER TABLE notes ADD COLUMN key TEXT")
+            self.db.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_notes_key ON notes(key)"
+                " WHERE key != ''"
+            )
 
     def _try_fts(self) -> bool:
         try:
@@ -236,12 +249,13 @@ class Store:
 
     def add_note(self, note: Note) -> Note:
         self.db.execute(
-            "INSERT OR REPLACE INTO notes (id, source_id, title, body, kind, tags,"
+            "INSERT OR REPLACE INTO notes (id, source_id, key, title, body, kind, tags,"
             " keywords, created_at, updated_at, strength, uses, wins, losses, revision)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 note.id,
                 note.source_id,
+                note.key,
                 note.title,
                 note.body,
                 note.kind,
@@ -287,6 +301,13 @@ class Store:
         by_id = {r["id"]: self._row_to_note(r) for r in rows}
         return [by_id[i] for i in note_ids if i in by_id]
 
+    def find_note_by_key(self, key: str) -> Note | None:
+        """The note a given slice of a given source produced, if it exists."""
+        if not key:
+            return None
+        row = self.db.execute("SELECT * FROM notes WHERE key = ?", (key,)).fetchone()
+        return self._row_to_note(row) if row else None
+
     def find_note_by_title(self, title: str) -> Note | None:
         row = self.db.execute(
             "SELECT * FROM notes WHERE lower(title) = lower(?) LIMIT 1", (title,)
@@ -310,6 +331,7 @@ class Store:
         return Note(
             id=row["id"],
             source_id=row["source_id"] or "",
+            key=(row["key"] if "key" in row.keys() else "") or "",
             title=row["title"],
             body=row["body"],
             kind=row["kind"] or "atomic",

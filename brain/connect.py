@@ -58,14 +58,19 @@ class ConnectResult:
     links: list[Link] = field(default_factory=list)
     claims: list[Claim] = field(default_factory=list)
     stubs: list[Note] = field(default_factory=list)
+    #: Notes a re-derivation deliberately left alone because they were corrected.
+    kept: list[Note] = field(default_factory=list)
 
     def summary(self) -> dict[str, int]:
-        return {
+        out = {
             "notes": len(self.notes),
             "links": len(self.links),
             "claims": len(self.claims),
             "stubs": len(self.stubs),
         }
+        if self.kept:
+            out["kept"] = len(self.kept)
+        return out
 
 
 class Connector:
@@ -90,14 +95,31 @@ class Connector:
     # --- public ----------------------------------------------------------
 
     def connect(self, source: Source, extract_claims: bool = True) -> ConnectResult:
+        """Derive notes from a source. Safe to run again on the same source.
+
+        Each note carries a stable key naming the slice of the source it came
+        from, so a second pass updates the same note rather than adding a copy.
+        A note a human has corrected is left alone: re-deriving from the original
+        text would silently undo the correction, and the correction is the more
+        recent truth.
+        """
         result = ConnectResult()
         for chunk in split_into_chunks(source.raw_text, self.min_note_chars, self.max_note_chars):
             note = self._make_note(source, chunk)
+            existing = self.store.find_note_by_key(note.key)
+            if existing is not None:
+                if existing.revision > 1:
+                    result.kept.append(existing)
+                    result.notes.append(existing)
+                    continue
+                note = self._merge_onto(existing, note)
             self.store.add_note(note)
             self.store.put_vector(note.id, self.embedder.name, self.embedder.embed(note.text))
             result.notes.append(note)
             if extract_claims:
                 for claim in extract_claim_texts(note.body):
+                    if any(c.text == claim for c in self.store.claims_for_notes([note.id])):
+                        continue
                     result.claims.append(self.store.add_claim(Claim(note_id=note.id, text=claim)))
 
         for note in result.notes:
@@ -127,10 +149,23 @@ class Connector:
             title=chunk.title or _derive_title(chunk.text),
             body=body,
             source_id=source.id,
+            key=f"{source.id}#{chunk.index}",
             kind="atomic",
             tags=sorted(set(TAG.findall(chunk.text))),
             keywords=keywords_of(chunk.text),
         )
+
+    @staticmethod
+    def _merge_onto(existing: Note, fresh: Note) -> Note:
+        """Refresh a note's derived content, keeping everything it has earned."""
+        fresh.id = existing.id
+        fresh.created_at = existing.created_at
+        fresh.strength = existing.strength
+        fresh.uses = existing.uses
+        fresh.wins = existing.wins
+        fresh.losses = existing.losses
+        fresh.revision = existing.revision
+        return fresh
 
     def _wikilinks(self, note: Note, result: ConnectResult) -> list[Link]:
         raw = self.store.get_source(note.source_id)
@@ -208,6 +243,8 @@ class Connector:
 class Chunk:
     text: str
     title: str = ""
+    #: Position in the source's reading order. Part of a note's stable key.
+    index: int = 0
 
 
 def split_into_chunks(text: str, min_chars: int = 120, max_chars: int = 1600) -> list[Chunk]:
@@ -222,10 +259,17 @@ def split_into_chunks(text: str, min_chars: int = 120, max_chars: int = 1600) ->
     sections = _split_by_heading(text)
     chunks: list[Chunk] = []
     for title, body in sections:
-        for piece in _merge_paragraphs(body, min_chars, max_chars):
-            chunks.append(Chunk(text=piece, title=title))
+        pieces = _merge_paragraphs(body, min_chars, max_chars)
+        for part, piece in enumerate(pieces, 1):
+            # A long section becomes several notes. Giving them all the section
+            # heading makes a brief list "[1] Stage 3" and "[2] Stage 3" with no
+            # way to tell them apart, so numbered parts carry the distinction.
+            label = title if len(pieces) == 1 else f"{title} ({part}/{len(pieces)})"
+            chunks.append(Chunk(text=piece, title=label))
     if not chunks:
         chunks = [Chunk(text=text)]
+    for i, chunk in enumerate(chunks):
+        chunk.index = i
     return chunks
 
 

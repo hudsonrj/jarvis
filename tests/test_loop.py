@@ -113,12 +113,32 @@ def test_an_unknown_profile_is_rejected(embedder):
         Brain(":memory:", profile="nonsense", embedder=embedder)
 
 
-def test_reconnect_is_idempotent_on_sources(brain, latency_doc):
+def test_reconnect_is_idempotent(brain, latency_doc):
+    """Counting only sources here once hid a bug that doubled every note."""
     with brain.session("s"):
         brain.learn_from(latency_doc)
-    sources = brain.store.count("sources")
+    before = (
+        brain.store.count("sources"),
+        brain.store.count("notes"),
+        brain.store.count("claims"),
+    )
     brain.reconnect_all()
-    assert brain.store.count("sources") == sources
+    brain.reconnect_all()
+    assert (
+        brain.store.count("sources"),
+        brain.store.count("notes"),
+        brain.store.count("claims"),
+    ) == before
+
+
+def test_learning_the_same_file_twice_does_not_double_the_brain(brain, tmp_path, latency_doc):
+    doc = tmp_path / "notes.md"
+    doc.write_text(latency_doc)
+    with brain.session("s"):
+        brain.learn_from(str(doc))
+        notes = brain.store.count("notes")
+        brain.learn_from(str(doc))
+    assert brain.store.count("notes") == notes
 
 
 def test_the_brain_survives_a_reopen(tmp_path, embedder, latency_doc):
@@ -187,3 +207,10 @@ def test_describe_loop_mentions_every_project():
     text = describe_loop()
     for p in PROJECTS:
         assert p.name in text
+
+
+def test_reconnect_reports_the_notes_it_preserved(brain, latency_doc):
+    with brain.session("s"):
+        note = brain.learn_from(latency_doc).notes[0]
+        brain.correct(note.id, "A corrected body that supersedes what the source said.")
+    assert note.id in {n.id for n in brain.reconnect_all().kept}

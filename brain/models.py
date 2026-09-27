@@ -59,6 +59,11 @@ class Note:
     title: str
     body: str
     source_id: str = ""
+    #: Stable identity for re-derivation: which slice of which source produced
+    #: this note. Deliberately independent of the body, so connecting the same
+    #: source twice updates one note instead of creating a second copy, and a
+    #: corrected body does not change what the note *is*.
+    key: str = ""
     id: str = field(default_factory=lambda: new_id("note"))
     kind: str = "atomic"  # atomic | summary | stub
     tags: list[str] = field(default_factory=list)

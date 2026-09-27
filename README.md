@@ -122,7 +122,7 @@ pip install pytest
 python -m pytest tests/ -q
 ```
 
-153 tests. The suite needs no network and no model server.
+162 tests. The suite needs no network and no model server.
 
 ---
 

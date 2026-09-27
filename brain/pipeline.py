@@ -143,6 +143,7 @@ class Brain:
             merged.links += part.links
             merged.claims += part.claims
             merged.stubs += part.stubs
+            merged.kept += part.kept
         return merged
 
     def reconnect_all(self) -> ConnectResult:
@@ -154,6 +155,7 @@ class Brain:
             merged.links += part.links
             merged.claims += part.claims
             merged.stubs += part.stubs
+            merged.kept += part.kept
         return merged
 
     # --- stage 3: recall -------------------------------------------------

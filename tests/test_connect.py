@@ -219,3 +219,68 @@ def test_a_captured_markdown_file_does_not_donate_its_code_blocks(store, connect
         assert "```" not in claim.text
         assert "pip install" not in claim.text
         assert "|" not in claim.text
+
+
+def test_connecting_the_same_source_twice_does_not_duplicate_notes(store, connector, latency_doc):
+    """The bug this guards: the whole brain doubled on every re-ingest."""
+    source = store.add_source(capture_text(latency_doc))
+    connector.connect(source)
+    first = store.count("notes")
+    connector.connect(source)
+    assert store.count("notes") == first
+
+
+def test_re_derivation_updates_the_same_note_in_place(store, connector, latency_doc):
+    source = store.add_source(capture_text(latency_doc))
+    ids = {n.id for n in connector.connect(source).notes}
+    assert {n.id for n in connector.connect(source).notes} == ids
+
+
+def test_re_derivation_keeps_what_a_note_earned(store, connector, latency_doc):
+    source = store.add_source(capture_text(latency_doc))
+    note = connector.connect(source).notes[0]
+    note.strength, note.wins, note.uses = 4.0, 3, 7
+    store.update_note(note)
+    connector.connect(source)
+    again = store.get_note(note.id)
+    assert (again.strength, again.wins, again.uses) == (4.0, 3, 7)
+
+
+def test_re_derivation_does_not_undo_a_correction(store, connector, latency_doc):
+    """Re-deriving from the original text must not resurrect superseded facts."""
+    from brain.feedback import Learner
+
+    source = store.add_source(capture_text(latency_doc))
+    note = connector.connect(source).notes[0]
+    Learner(store, connector).correct(
+        note.id, "The budget was raised to 250 milliseconds after the new SLO.", reason="new SLO"
+    )
+    result = connector.connect(source)
+    assert "250 milliseconds" in store.get_note(note.id).body
+    assert note.id in {n.id for n in result.kept}
+
+
+def test_re_derivation_does_not_duplicate_claims(store, connector, latency_doc):
+    source = store.add_source(capture_text(latency_doc))
+    connector.connect(source)
+    first = store.count("claims")
+    connector.connect(source)
+    assert store.count("claims") == first
+
+
+def test_a_split_section_gets_distinguishable_titles(store, connector):
+    long_section = "# One heading\n\n" + "\n\n".join(
+        f"Paragraph {i} carries enough text to stand as its own note about retrieval "
+        f"quality and the way ranking signals are blended together in practice." for i in range(4)
+    )
+    titles = [n.title for n in connector.connect(store.add_source(capture_text(long_section))).notes]
+    assert len(titles) == len(set(titles)), titles
+    assert all("One heading" in t for t in titles)
+
+
+def test_a_single_section_keeps_its_plain_heading(store, connector):
+    result = connector.connect(store.add_source(capture_text(
+        "# Just one\nA single paragraph that is long enough to become exactly one note "
+        "about how the ranking signals are blended together in practice."
+    )))
+    assert result.notes[0].title == "Just one"
