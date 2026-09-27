@@ -52,6 +52,7 @@ class Brain:
         path: str | Path | None = None,
         profile: str = "default",
         embedder: Embedder | None = None,
+        same_thread: bool = True,
     ) -> None:
         if profile in BUILDS:
             build = BUILDS[profile]
@@ -67,7 +68,7 @@ class Brain:
             )
         self.profile = profile
         self.recall_limit = limit
-        self.store = Store(path)
+        self.store = Store(path, same_thread=same_thread)
         self.embedder = embedder or get_embedder()
         self.connector = Connector(self.store, embedder=self.embedder)
         self.recaller = Recaller(self.store, embedder=self.embedder, weights=weights)

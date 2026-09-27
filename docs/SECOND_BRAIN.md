@@ -35,7 +35,9 @@ Jarvis agent, and Ollama is optional (see *Embeddings* below).
 
 `brain/pipeline.py` assembles them into the `Brain` facade; `brain/sharpness.py`
 measures the result; `brain/registry.py` records which of the 20 projects fills
-which slot.
+which slot. Three surfaces sit on top: `tools/brain.py` (the Jarvis agent),
+`brain/cli.py` (the command line) and `brain/webapp.py` with `brain/web/`
+(the web app). All three drive the same brain file.
 
 ---
 
@@ -297,6 +299,33 @@ Six tools are registered on the agent in `main.py`:
 Replies are written to be spoken: no markdown, no ids read aloud, and an
 explicit *I don't know* when nothing is stored.
 
+### From the web app
+
+```bash
+python -m brain serve            # http://localhost:8787
+```
+
+One page, five views, driving the whole loop:
+
+| View | What it does |
+|---|---|
+| **Ask** | Asks the brain. Each hit shows its five signal bars, its score, its source, and whether it arrived directly or through a link. Coverage is drawn, and stamped *low confidence* below 0.35. A **Copy LLM prompt** button hands the cited block to any model. |
+| **Capture** | Paste, a file path, a folder of markdown, or a URL. Reports the notes, links and claims derived, and the change in sharpness — including when it goes **down**. |
+| **Claims** | Every extracted statement by status. Record *supported*, *refuted* or *contested* with evidence, in one click. |
+| **Notes** | Search, open a note, read its links and claims, see **how it changed** as a before/after diff, and correct it. |
+| **Map** | The graph. Node size follows how many links a note has, brightness follows earned strength, and edge colour follows link origin — an explicit `wikilink` reads through a mesh of inferred ones. Click a node to open the note. |
+
+The sharpness strip sits above every view, so the five components and the
+cheapest next move are always in sight.
+
+It is built on `http.server`, so the app adds no dependency, and it works with
+no network at all: no CDN, no web fonts, no external anything.
+
+**It binds to 127.0.0.1 and has no authentication.** Anyone who can reach the
+port has full read and write access to the brain. `--host` exists for putting it
+on a machine you reach over a tailnet or an SSH tunnel; it is not a reason to put
+it on the open internet.
+
 ### From the command line
 
 ```bash
@@ -311,6 +340,7 @@ python -m brain correct note_abc "the corrected text" --reason "was out of date"
 python -m brain --session "monday" learn ~/notes/inbox
 python -m brain status
 python -m brain trend
+python -m brain serve --port 8787
 ```
 
 ### From Python
@@ -386,7 +416,7 @@ Stated plainly, because a memory system that oversells itself is worse than none
 pip install pytest && python -m pytest tests/ -q
 ```
 
-162 tests, no network, no model server — `BRAIN_USE_OLLAMA_EMBED=0` is set in
+193 tests, no network, no model server — `BRAIN_USE_OLLAMA_EMBED=0` is set in
 `tests/conftest.py`, and the hashed embedder is deterministic.
 
 The ones worth reading first, because they pin the behaviour the design is
@@ -404,6 +434,8 @@ actually claiming:
 | `test_correction_supersedes_claims_that_no_longer_apply` | Stale claims stop circulating |
 | `test_the_brain_survives_a_reopen` | It is durable, not in-memory theatre |
 | `test_truncated_urls_are_labelled_not_guessed` | No fabricated repository names |
+| `test_service_survives_concurrent_calls` | The web app's writes stay serialized |
+| `test_path_traversal_is_refused` | The server serves only its own files |
 | `test_link_scoring_separates_related_from_unrelated` | The link threshold sits in a real, measured gap |
 | `test_a_captured_markdown_file_does_not_donate_its_code_blocks` | Code and tables never become "claims" |
 | `test_connecting_the_same_source_twice_does_not_duplicate_notes` | Re-ingesting does not double the brain |

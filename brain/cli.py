@@ -8,6 +8,7 @@
     python -m brain verify claim_abc supported --evidence "dashboard link"
     python -m brain correct note_abc "the corrected text" --reason "was out of date"
     python -m brain status
+    python -m brain serve          # the web app, at http://localhost:8787
     python -m brain loop
 """
 
@@ -89,6 +90,11 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("decay", help="pull strengths back toward baseline")
     p.add_argument("--half-life", type=float, default=90.0)
 
+    p = sub.add_parser("serve", help="open the web app for this brain")
+    p.add_argument("--port", type=int, default=8787)
+    p.add_argument("--host", default="127.0.0.1",
+                   help="bind address; anything but localhost exposes the brain with no auth")
+
     sub.add_parser("status", help="sharpness, counts, and the cheapest next move")
     sub.add_parser("trend", help="sharpness session over session")
     sub.add_parser("reconnect", help="re-derive notes from every stored source")
@@ -109,7 +115,13 @@ def main(argv: list[str] | None = None) -> int:
         embedder = HashEmbedder()
 
     try:
-        brain = Brain(args.db, profile=args.profile, embedder=embedder)
+        brain = Brain(
+            args.db,
+            profile=args.profile,
+            embedder=embedder,
+            # The web server answers requests on worker threads.
+            same_thread=args.cmd != "serve",
+        )
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
@@ -236,6 +248,12 @@ def _dispatch(brain: Brain, args: argparse.Namespace) -> int:
 
     if args.cmd == "trend":
         print(brain.trend())
+        return 0
+
+    if args.cmd == "serve":
+        from .webapp import run as run_web
+
+        run_web(brain, host=args.host, port=args.port)
         return 0
 
     if args.cmd == "reconnect":

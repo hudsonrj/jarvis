@@ -151,11 +151,19 @@ def _unjson(value: str | None, fallback: Any) -> Any:
 class Store:
     """Thin, explicit data layer. No ORM, no magic."""
 
-    def __init__(self, path: str | Path | None = None) -> None:
+    def __init__(self, path: str | Path | None = None, same_thread: bool = True) -> None:
+        """Open a brain file.
+
+        ``same_thread=False`` allows use from more than one thread, which the web
+        server needs. Callers that do this must serialize their own access:
+        sqlite will no longer raise on a cross-thread call, and it is the
+        caller's job not to interleave two writes.
+        """
+        self.same_thread = same_thread
         self.path = Path(path) if path else DEFAULT_PATH
         if str(self.path) != ":memory:":
             self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.db = sqlite3.connect(str(self.path))
+        self.db = sqlite3.connect(str(self.path), check_same_thread=same_thread)
         self.db.row_factory = sqlite3.Row
         self.db.execute("PRAGMA journal_mode=WAL")
         self.db.execute("PRAGMA foreign_keys=ON")

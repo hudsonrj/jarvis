@@ -34,6 +34,17 @@ Six tools are wired into the agent, so by voice you can say *"remember that we
 moved the deployment to the Pi"*, ask *"where are we deploying Jarvis?"* later,
 and correct it with *"actually, that changed"* — and the correction sticks.
 
+There is a web app for it:
+
+```bash
+python -m brain serve          # http://localhost:8787
+```
+
+Ask and read a cited answer with its five recall signals drawn per hit, capture a
+source, verify the open claims, correct a note and see the before/after, and walk
+the graph. Built on `http.server` — no dependency, no CDN, works offline. It binds
+to localhost and has no authentication.
+
 There is also a command line:
 
 ```bash
@@ -122,7 +133,7 @@ pip install pytest
 python -m pytest tests/ -q
 ```
 
-162 tests. The suite needs no network and no model server.
+193 tests. The suite needs no network and no model server.
 
 ---
 

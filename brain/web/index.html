@@ -1,0 +1,972 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Second Brain</title>
+<style>
+:root {
+  color-scheme: light;
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --surface-2: #eef1f5;
+  --ink: #15181d;
+  --muted: #5d6674;
+  --faint: #8b94a1;
+  --line: #e2e6ec;
+  --accent: #2f5fd0;
+  --accent-soft: #e7edfb;
+  --on-accent: #ffffff;
+  --ok: #1a7f5a;
+  --warn: #8a5a00;
+  --bad: #b3261e;
+  --dim: #6b7482;
+  --shadow: 0 1px 2px rgba(20, 26, 40, .06), 0 8px 24px -12px rgba(20, 26, 40, .18);
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --r: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0f1216;
+    --surface: #161a20;
+    --surface-2: #1d222a;
+    --ink: #e8ebef;
+    --muted: #9aa4b2;
+    --faint: #6f7987;
+    --line: #262c35;
+    --accent: #7ba2f0;
+    --accent-soft: #1b2640;
+    --on-accent: #0f1216;
+    --ok: #4cc38a;
+    --warn: #d7a13b;
+    --bad: #f0827a;
+    --dim: #8c95a3;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 10px 28px -14px rgba(0, 0, 0, .7);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0f1216;
+  --surface: #161a20;
+  --surface-2: #1d222a;
+  --ink: #e8ebef;
+  --muted: #9aa4b2;
+  --faint: #6f7987;
+  --line: #262c35;
+  --accent: #7ba2f0;
+  --accent-soft: #1b2640;
+  --on-accent: #0f1216;
+  --ok: #4cc38a;
+  --warn: #d7a13b;
+  --bad: #f0827a;
+  --dim: #8c95a3;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .4), 0 10px 28px -14px rgba(0, 0, 0, .7);
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 15px/1.55 var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+img { max-width: 100%; }
+[hidden] { display: none !important; }
+button, input, textarea, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+
+/* ---------- shell ---------- */
+.shell { display: grid; grid-template-columns: 216px 1fr; min-height: 100%; }
+.rail {
+  border-right: 1px solid var(--line);
+  background: var(--surface);
+  padding: calc(18px + env(safe-area-inset-top, 0px)) 14px 18px;
+  display: flex; flex-direction: column; gap: 22px;
+}
+.brand { display: flex; flex-direction: column; gap: 2px; }
+.brand b { font-size: 15px; letter-spacing: -.01em; }
+.brand span { font: 11px/1.4 var(--mono); color: var(--faint); word-break: break-all; }
+.nav { display: flex; flex-direction: column; gap: 2px; }
+.nav button {
+  display: flex; align-items: center; gap: 9px;
+  background: none; border: 0; text-align: left;
+  padding: 8px 10px; border-radius: 8px; cursor: pointer; color: var(--muted);
+}
+.nav button:hover { background: var(--surface-2); color: var(--ink); }
+.nav button[aria-current="true"] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.nav .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: .55; flex: none; }
+.nav .count { margin-left: auto; font: 11px var(--mono); color: var(--faint); }
+.rail-foot { margin-top: auto; display: flex; flex-direction: column; gap: 10px; }
+.theme-btn { background: none; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; color: var(--muted); cursor: pointer; }
+.theme-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+.main { min-width: 0; padding: calc(18px + env(safe-area-inset-top, 0px)) 22px 40px; }
+.wrap { max-width: 900px; margin: 0 auto; }
+
+/* ---------- sharpness strip ---------- */
+.gauge {
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r);
+  box-shadow: var(--shadow); padding: 16px 18px; margin-bottom: 20px;
+}
+.gauge-top { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+.score { font: 600 34px/1 var(--mono); letter-spacing: -.02em; font-variant-numeric: tabular-nums; }
+.score small { font: 500 13px var(--sans); color: var(--faint); }
+.gauge-counts { display: flex; gap: 14px; flex-wrap: wrap; margin-left: auto; font: 12px var(--mono); color: var(--muted); }
+.gauge-counts b { color: var(--ink); font-weight: 600; }
+.meters { display: grid; grid-template-columns: repeat(auto-fit, minmax(128px, 1fr)); gap: 12px; margin-top: 16px; }
+.meter-label { display: flex; justify-content: space-between; font: 11px var(--mono); color: var(--muted); margin-bottom: 5px; }
+.meter-label b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.track { height: 5px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
+.track > i { display: block; height: 100%; background: var(--accent); border-radius: 3px; }
+.meter.weak .track > i { background: var(--warn); }
+.nextmove {
+  margin-top: 14px; padding-top: 12px; border-top: 1px dashed var(--line);
+  font-size: 13px; color: var(--muted); display: flex; gap: 8px; align-items: flex-start;
+}
+.nextmove b { color: var(--ink); font-weight: 600; flex: none; }
+
+/* ---------- generic ---------- */
+h1 { font-size: 20px; letter-spacing: -.015em; margin: 0 0 4px; text-wrap: balance; }
+.sub { color: var(--muted); font-size: 13px; margin: 0 0 18px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; }
+.card + .card { margin-top: 12px; }
+.row { display: flex; gap: 10px; align-items: flex-start; }
+.row.wrap { flex-wrap: wrap; }
+textarea, input[type=text], input[type=search] {
+  width: 100%; background: var(--bg); border: 1px solid var(--line);
+  border-radius: 8px; padding: 10px 12px; resize: vertical;
+}
+textarea:focus, input:focus { border-color: var(--accent); outline: none; }
+textarea { min-height: 96px; font-family: var(--sans); }
+.btn {
+  background: var(--accent); color: var(--on-accent); border: 0; border-radius: 8px;
+  padding: 9px 16px; font-weight: 600; cursor: pointer; white-space: nowrap;
+}
+.btn:hover { filter: brightness(1.08); }
+.btn:disabled { opacity: .5; cursor: progress; }
+.btn.ghost { background: none; color: var(--muted); border: 1px solid var(--line); font-weight: 500; }
+.btn.ghost:hover { color: var(--accent); border-color: var(--accent); filter: none; }
+.btn.sm { padding: 5px 11px; font-size: 13px; }
+.hint { font-size: 12px; color: var(--faint); }
+.mono { font-family: var(--mono); font-size: 12px; }
+
+.pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  font: 600 11px/1 var(--mono); text-transform: uppercase; letter-spacing: .04em;
+  padding: 4px 7px; border-radius: 5px; background: var(--surface-2); color: var(--muted);
+}
+.pill.ok { color: var(--ok); background: color-mix(in srgb, var(--ok) 12%, transparent); }
+.pill.warn { color: var(--warn); background: color-mix(in srgb, var(--warn) 14%, transparent); }
+.pill.bad { color: var(--bad); background: color-mix(in srgb, var(--bad) 12%, transparent); }
+.pill.dim { color: var(--dim); }
+
+.banner { border-radius: 8px; padding: 10px 12px; font-size: 13px; margin-bottom: 12px; }
+.banner.warn { background: color-mix(in srgb, var(--warn) 12%, transparent); color: var(--warn); }
+.banner.bad { background: color-mix(in srgb, var(--bad) 10%, transparent); color: var(--bad); }
+.banner.ok { background: color-mix(in srgb, var(--ok) 12%, transparent); color: var(--ok); }
+
+/* ---------- recall result ---------- */
+.hit { border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); overflow: hidden; }
+.hit + .hit { margin-top: 10px; }
+.hit-head { display: flex; gap: 10px; align-items: baseline; padding: 12px 14px 0; }
+.hit-idx { font: 600 12px var(--mono); color: var(--faint); flex: none; }
+.hit-title { font-weight: 600; font-size: 14px; flex: 1; min-width: 0; }
+.hit-score { font: 600 13px var(--mono); font-variant-numeric: tabular-nums; }
+.hit-body { padding: 8px 14px 12px 36px; color: var(--muted); font-size: 13.5px; }
+.line { min-height: .55em; }
+.line:empty { min-height: .5em; }
+.md-h { font-weight: 600; color: var(--ink); margin-top: 6px; }
+.inline-code { font: 12px var(--mono); background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
+.tbl {
+  font: 11.5px/1.5 var(--mono); background: var(--surface-2); color: var(--muted);
+  padding: 9px 11px; border-radius: 7px; margin: 8px 0; overflow-x: auto; white-space: pre;
+}
+.hit-foot {
+  display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
+  padding: 9px 14px; border-top: 1px solid var(--line); background: var(--surface-2);
+  font: 11px var(--mono); color: var(--faint);
+}
+.signals { display: flex; gap: 5px; flex: none; }
+.sig { width: 34px; }
+.sig .track { height: 6px; background: var(--line); }
+.sig span { display: block; font: 10px/1.5 var(--mono); color: var(--muted); text-align: center; letter-spacing: .02em; }
+.src { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1; }
+
+/* ---------- lists ---------- */
+.list { display: flex; flex-direction: column; gap: 8px; }
+.item {
+  display: flex; gap: 12px; align-items: flex-start; width: 100%; text-align: left;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r);
+  padding: 12px 14px; cursor: pointer;
+}
+.item:hover { border-color: var(--accent); }
+.item-main { flex: 1; min-width: 0; }
+.item-title { font-weight: 600; font-size: 14px; }
+.item-ex { color: var(--muted); font-size: 12.5px; margin-top: 3px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.item-meta { display: flex; gap: 10px; font: 11px var(--mono); color: var(--faint); margin-top: 6px; flex-wrap: wrap; }
+.claim { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r); padding: 13px 14px; }
+.claim-text { font-size: 13.5px; }
+.claim-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+.claim-actions input { flex: 1; min-width: 150px; padding: 6px 10px; font-size: 13px; }
+.empty { color: var(--faint); font-size: 13px; padding: 22px; text-align: center; border: 1px dashed var(--line); border-radius: var(--r); }
+
+/* ---------- note detail ---------- */
+.note-body { font-size: 14px; line-height: 1.6; }
+.diff { display: grid; gap: 8px; font-size: 13px; }
+.diff div { padding: 9px 11px; border-radius: 8px; white-space: pre-wrap; }
+.diff .before { background: color-mix(in srgb, var(--bad) 8%, transparent); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--bad) 60%, transparent); color: var(--muted); }
+.diff .after { background: color-mix(in srgb, var(--ok) 9%, transparent); }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chip { font: 11px var(--mono); border: 1px solid var(--line); border-radius: 999px; padding: 3px 9px; color: var(--muted); background: none; cursor: pointer; }
+.chip:hover { border-color: var(--accent); color: var(--accent); }
+h2.sec { font-size: 12px; text-transform: uppercase; letter-spacing: .07em; color: var(--faint); margin: 20px 0 9px; font-weight: 600; }
+
+/* ---------- map ---------- */
+.mapwrap { border: 1px solid var(--line); border-radius: var(--r); background: var(--surface); overflow: hidden; }
+canvas { display: block; width: 100%; height: auto; }
+.legend { display: flex; gap: 14px; flex-wrap: wrap; padding: 10px 14px; border-top: 1px solid var(--line); font: 11px var(--mono); color: var(--muted); }
+.legend i { display: inline-block; width: 14px; height: 2px; vertical-align: middle; margin-right: 5px; }
+
+/* ---------- phone ---------- */
+@media (max-width: 720px) {
+  .shell { grid-template-columns: 1fr; }
+  .rail {
+    border-right: 0; border-bottom: 1px solid var(--line);
+    flex-direction: row; align-items: center; gap: 12px; overflow-x: auto;
+    padding: calc(10px + env(safe-area-inset-top, 0px)) 16px 10px;
+  }
+  .brand span, .nav .count { display: none; }
+  .brand { flex: none; }
+  .brand b { white-space: nowrap; font-size: 14px; }
+  .nav { flex-direction: row; gap: 4px; }
+  .rail-foot { margin-top: 0; }
+  .main { padding: 16px 16px 40px; }
+  .gauge-counts { margin-left: 0; }
+}
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="rail">
+    <div class="brand">
+      <b>Second Brain</b>
+      <span id="brand-meta">loading…</span>
+    </div>
+    <nav class="nav" id="nav">
+      <button data-view="ask" aria-current="true"><i class="dot"></i>Ask</button>
+      <button data-view="capture"><i class="dot"></i>Capture</button>
+      <button data-view="claims"><i class="dot"></i>Claims<em class="count" id="n-claims"></em></button>
+      <button data-view="notes"><i class="dot"></i>Notes<em class="count" id="n-notes"></em></button>
+      <button data-view="map"><i class="dot"></i>Map</button>
+    </nav>
+    <div class="rail-foot">
+      <button class="theme-btn" id="theme">Theme</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="wrap">
+      <section class="gauge" id="gauge">
+        <div class="gauge-top">
+          <div class="score" id="score">—<small>/100 sharpness</small></div>
+          <div class="gauge-counts" id="counts"></div>
+        </div>
+        <div class="meters" id="meters"></div>
+        <div class="nextmove"><b>Next</b><span id="nextmove">—</span></div>
+      </section>
+
+      <!-- ASK -->
+      <section id="view-ask">
+        <h1>Ask the brain</h1>
+        <p class="sub">Recall runs over five signals. Every answer cites the notes it used, and says what it does not hold.</p>
+        <div class="card">
+          <div class="row wrap">
+            <input type="search" id="q" placeholder="what did we decide about the index?" autocomplete="off">
+            <button class="btn" id="ask-go">Ask</button>
+          </div>
+          <div class="chips" id="q-examples" style="margin-top:10px"></div>
+        </div>
+        <div id="ask-out"></div>
+      </section>
+
+      <!-- CAPTURE -->
+      <section id="view-capture" hidden>
+        <h1>Capture a source</h1>
+        <p class="sub">Paste text, or give a file path, a folder of markdown, or a URL. Capturing the same thing twice changes nothing.</p>
+        <div class="card">
+          <textarea id="cap" placeholder="Paste what happened, or a path like docs/SECOND_BRAIN.md, or https://…"></textarea>
+          <div class="row wrap" style="margin-top:10px; align-items:center">
+            <button class="btn" id="cap-go">Capture and connect</button>
+            <span class="hint">Raw text alone lowers sharpness. Linking and verifying is what raises it.</span>
+          </div>
+        </div>
+        <div id="cap-out"></div>
+      </section>
+
+      <!-- CLAIMS -->
+      <section id="view-claims" hidden>
+        <h1>Claims</h1>
+        <p class="sub">Statements pulled out of your notes. Unverified knowledge is not knowledge.</p>
+        <div class="chips" id="claim-filters" style="margin-bottom:12px"></div>
+        <div id="claims-out" class="list"></div>
+      </section>
+
+      <!-- NOTES -->
+      <section id="view-notes" hidden>
+        <h1>Notes</h1>
+        <p class="sub">Search what the brain holds. Open a note to see its links, its claims and how it changed.</p>
+        <div class="card" style="margin-bottom:12px">
+          <input type="search" id="nq" placeholder="search notes" autocomplete="off">
+        </div>
+        <div id="notes-out" class="list"></div>
+        <div id="note-detail"></div>
+      </section>
+
+      <!-- MAP -->
+      <section id="view-map" hidden>
+        <h1>Map</h1>
+        <p class="sub">How the notes connect. Link origin is drawn, because an explicit link is worth more than an inferred one.</p>
+        <div class="mapwrap">
+          <canvas id="cv" width="900" height="520"></canvas>
+          <div class="legend">
+            <span><i style="background:var(--accent)"></i>wikilink — written by hand</span>
+            <span><i style="background:var(--ok)"></i>manual — asserted later</span>
+            <span><i style="background:var(--dim)"></i>overlap — inferred</span>
+            <span><i style="background:var(--line)"></i>sequence — reading order</span>
+          </div>
+        </div>
+        <p class="hint" id="map-note" style="margin-top:10px"></p>
+      </section>
+    </div>
+  </main>
+</div>
+
+<script>
+"use strict";
+const $ = (s, r = document) => r.querySelector(s);
+const el = (t, cls, txt) => { const n = document.createElement(t); if (cls) n.className = cls; if (txt != null) n.textContent = txt; return n; };
+// Element.append() returns undefined, so it can never be chained. This returns
+// the parent, which can.
+const into = (parent, ...kids) => { parent.append(...kids); return parent; };
+const fmt = n => (Math.round(n * 100) / 100).toFixed(2);
+
+async function api(path, body) {
+  const opts = body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {};
+  const res = await fetch(path, opts);
+  const data = await res.json().catch(() => ({ error: "the server sent something that was not JSON" }));
+  if (!res.ok) throw new Error(data.error || `request failed (${res.status})`);
+  return data;
+}
+/* Notes keep their source text verbatim. Markdown from a captured file is
+   unreadable raw ("**relevance**", table pipes), so it is rendered here for
+   display only — built as DOM nodes, never as innerHTML. */
+function inline(text, host) {
+  const re = /(\*\*[^*]+\*\*|`[^`]+`)/g;
+  let last = 0, m;
+  while ((m = re.exec(text)) !== null) {
+    if (m.index > last) host.append(document.createTextNode(text.slice(last, m.index)));
+    const tok = m[0];
+    if (tok.startsWith("**")) host.append(el("strong", null, tok.slice(2, -2)));
+    else host.append(el("code", "inline-code", tok.slice(1, -1)));
+    last = m.index + tok.length;
+  }
+  if (last < text.length) host.append(document.createTextNode(text.slice(last)));
+}
+
+function renderText(host, text) {
+  host.innerHTML = "";
+  const lines = String(text).split("\n");
+  let i = 0;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (line.trim().startsWith("|")) {
+      const rows = [];
+      while (i < lines.length && lines[i].trim().startsWith("|")) rows.push(lines[i]), i++;
+      const pre = el("pre", "tbl", rows.join("\n"));
+      host.append(pre);
+      continue;
+    }
+    const para = el("div", "line");
+    const heading = line.match(/^(#{1,6})\s+(.*)$/);
+    if (heading) { para.classList.add("md-h"); inline(heading[2], para); }
+    else inline(line, para);
+    host.append(para);
+    i++;
+  }
+}
+
+function plain(text, limit) {
+  const t = String(text).replace(/[*`#]/g, "").replace(/\s+/g, " ").trim();
+  return limit && t.length > limit ? t.slice(0, limit) + "…" : t;
+}
+
+function fail(host, err) {
+  host.innerHTML = "";
+  host.append(el("div", "banner bad", err.message || String(err)));
+}
+
+/* ---------- theme ---------- */
+const THEMES = ["system", "light", "dark"];
+let theme = (() => { try { return localStorage.getItem("brain-theme") || "system"; } catch { return "system"; } })();
+function applyTheme() {
+  if (theme === "system") document.documentElement.removeAttribute("data-theme");
+  else document.documentElement.setAttribute("data-theme", theme);
+  $("#theme").textContent = "Theme: " + theme;
+}
+$("#theme").addEventListener("click", () => {
+  theme = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length];
+  try { localStorage.setItem("brain-theme", theme); } catch {}
+  applyTheme();
+  if (currentView === "map") drawMap();
+});
+applyTheme();
+
+/* ---------- sharpness ---------- */
+const COMPONENT_ORDER = ["volume", "linkage", "connectedness", "verification", "trust"];
+async function refreshGauge() {
+  let s;
+  try { s = await api("/api/state"); } catch (e) { return fail($("#gauge"), e); }
+  $("#score").innerHTML = "";
+  $("#score").append(document.createTextNode(fmt(s.sharpness)), el("small", null, "/100 sharpness"));
+  $("#brand-meta").textContent = `${s.profile} · ${s.embedder}`;
+  $("#brand-meta").title = s.path;
+
+  const counts = $("#counts"); counts.innerHTML = "";
+  const pending = (s.counts.claims || 0) - (s.counts.checked || 0);
+  [["notes", s.counts.notes || 0], ["links", s.counts.links || 0],
+   ["sources", s.counts.sources || 0], ["to verify", pending],
+   ["corrections", s.counts.corrections || 0]].forEach(([k, v]) => {
+    const span = el("span"); span.append(el("b", null, String(v)), document.createTextNode(" " + k));
+    counts.append(span);
+  });
+  $("#n-notes").textContent = s.counts.notes || 0;
+  $("#n-claims").textContent = pending || "";
+
+  const meters = $("#meters"); meters.innerHTML = "";
+  COMPONENT_ORDER.forEach(name => {
+    const v = s.components[name] ?? 0;
+    const box = el("div", "meter" + (name === s.weakest ? " weak" : ""));
+    const lab = el("div", "meter-label");
+    lab.append(el("span", null, name), el("b", null, fmt(v)));
+    const track = el("div", "track"); const bar = el("i");
+    bar.style.width = Math.max(1.5, v * 100) + "%";
+    track.append(bar); box.append(lab, track); meters.append(box);
+  });
+  $("#nextmove").textContent = s.next_move;
+  return s;
+}
+
+/* ---------- ask ---------- */
+const SIG_ORDER = [["lexical", "lex"], ["semantic", "sem"], ["graph", "grf"], ["strength", "str"], ["recency", "rec"]];
+let lastBrief = null;
+
+async function doAsk() {
+  const q = $("#q").value.trim();
+  const out = $("#ask-out");
+  if (!q) return;
+  $("#ask-go").disabled = true;
+  out.innerHTML = "";
+  out.append(el("p", "hint", "recalling…"));
+  try {
+    const r = await api("/api/ask", { query: q });
+    lastBrief = r.brief_id;
+    renderAsk(r);
+  } catch (e) { fail(out, e); }
+  finally { $("#ask-go").disabled = false; }
+}
+
+function renderAsk(r) {
+  const out = $("#ask-out"); out.innerHTML = "";
+  if (!r.recalls.length) {
+    out.append(el("div", "banner warn",
+      "The brain holds nothing relevant to that. Capture a source instead of guessing at an answer."));
+    if (r.gaps.length) out.append(el("p", "hint", "Nothing stored on: " + r.gaps.join(", ")));
+    return;
+  }
+  const head = el("div", "card");
+  const top = el("div", "row wrap");
+  top.style.alignItems = "center";
+  const cov = el("div");
+  cov.style.flex = "1";
+  const covLabel = el("div", "meter-label");
+  covLabel.append(el("span", null, "coverage"), el("b", null, fmt(r.coverage)));
+  cov.append(covLabel);
+  const track = el("div", "track"); const bar = el("i");
+  bar.style.width = Math.min(100, Math.max(2, r.coverage * 100)) + "%";
+  if (r.coverage < 0.35) bar.style.background = "var(--warn)";
+  track.append(bar); cov.append(track);
+  const copy = el("button", "btn ghost sm", "Copy LLM prompt");
+  copy.addEventListener("click", async () => {
+    try { await navigator.clipboard.writeText(r.prompt); copy.textContent = "Copied"; }
+    catch { copy.textContent = "Copy failed"; }
+    setTimeout(() => copy.textContent = "Copy LLM prompt", 1600);
+  });
+  top.append(cov, copy);
+  head.append(top);
+  if (r.coverage < 0.35) head.append(el("p", "hint",
+    "Low confidence. Treat what follows as a lead, not a fact."));
+  if (r.gaps.length) head.append(el("p", "hint", "Holds nothing on: " + r.gaps.join(", ")));
+  out.append(head);
+
+  r.recalls.forEach((h, i) => {
+    const hit = el("div", "hit");
+    const hd = el("div", "hit-head");
+    hd.append(el("span", "hit-idx", "[" + (i + 1) + "]"), el("span", "hit-title", plain(h.title)),
+              el("span", "hit-score", fmt(h.score)));
+    const body = el("div", "hit-body"); renderText(body, h.body);
+    const foot = el("div", "hit-foot");
+    const sigs = el("div", "signals");
+    SIG_ORDER.forEach(([key, short]) => {
+      const s = el("div", "sig");
+      const t = el("div", "track"); const b = el("i");
+      b.style.width = Math.max(2, (h.signals[key] || 0) * 100) + "%";
+      if (key === "strength" || key === "recency") b.style.background = "var(--dim)";
+      t.append(b);
+      s.append(t, el("span", null, short));
+      s.title = `${key} ${fmt(h.signals[key] || 0)}`;
+      sigs.append(s);
+    });
+    foot.append(sigs);
+    if (h.path === "neighbor") foot.append(el("span", "pill dim", "via link"));
+    if (h.revision > 1) foot.append(el("span", "pill warn", "rev " + h.revision));
+    foot.append(el("span", "src", h.source || ""));
+    const openBtn = el("button", "btn ghost sm", "Open");
+    openBtn.addEventListener("click", () => { show("notes"); openNote(h.id); });
+    foot.append(openBtn);
+    hit.append(hd, body, foot);
+    out.append(hit);
+  });
+
+  if (r.open_claims.length) {
+    out.append(el("h2", "sec", `Unverified in these notes (${r.open_claims.length})`));
+    const list = el("div", "list");
+    r.open_claims.forEach(c => list.append(claimCard(c, () => doAsk())));
+    out.append(list);
+  }
+
+  out.append(el("h2", "sec", "Was that useful?"));
+  const fb = el("div", "row wrap");
+  const helped = el("button", "btn sm", "It helped");
+  const misled = el("button", "btn ghost sm", "It misled me");
+  const note = el("span", "hint");
+  note.style.alignSelf = "center";
+  note.textContent = "Feedback changes what surfaces next time.";
+  async function send(verdict, btn) {
+    helped.disabled = misled.disabled = true;
+    try {
+      const res = await api("/api/feedback", { brief_id: lastBrief, verdict });
+      note.textContent = `${verdict === "helped" ? "Strengthened" : "Weakened"} ${res.adjusted.length} note(s). Sharpness ${fmt(res.sharpness)}.`;
+      refreshGauge();
+    } catch (e) { note.textContent = e.message; helped.disabled = misled.disabled = false; }
+  }
+  helped.addEventListener("click", () => send("helped", helped));
+  misled.addEventListener("click", () => send("misled", misled));
+  fb.append(helped, misled, note);
+  out.append(fb);
+}
+$("#ask-go").addEventListener("click", doAsk);
+$("#q").addEventListener("keydown", e => { if (e.key === "Enter") doAsk(); });
+
+/* ---------- claims ---------- */
+const STATUSES = ["unverified", "supported", "refuted", "contested", "superseded"];
+const PILL = { supported: "ok", unverified: "warn", refuted: "bad", contested: "warn", superseded: "dim" };
+let claimFilter = "unverified";
+
+function claimCard(c, after) {
+  const card = el("div", "claim");
+  const head = el("div", "row wrap");
+  head.style.alignItems = "baseline";
+  head.append(el("span", "pill " + (PILL[c.status] || "dim"), c.status));
+  if (c.note_title) head.append(el("span", "hint", c.note_title));
+  card.append(head, el("p", "claim-text", c.text));
+  if (c.evidence && c.evidence.length) {
+    card.append(el("p", "hint", "Evidence: " + c.evidence.join(" · ")));
+  }
+  const actions = el("div", "claim-actions");
+  const ev = el("input"); ev.type = "text"; ev.placeholder = "evidence (a link, a measurement, who said so)";
+  actions.append(ev);
+  [["supported", "Supported"], ["refuted", "Refuted"], ["contested", "Contested"]].forEach(([status, label]) => {
+    const b = el("button", "btn ghost sm", label);
+    b.addEventListener("click", async () => {
+      b.disabled = true;
+      try {
+        await api("/api/verify", { claim_id: c.id, status, evidence: ev.value.trim() });
+        refreshGauge();
+        if (after) after(); else loadClaims();
+      } catch (e) { b.disabled = false; actions.append(el("span", "hint", e.message)); }
+    });
+    actions.append(b);
+  });
+  card.append(actions);
+  return card;
+}
+
+async function loadClaims() {
+  const filters = $("#claim-filters"); filters.innerHTML = "";
+  STATUSES.forEach(s => {
+    const b = el("button", "chip", s);
+    if (s === claimFilter) { b.style.borderColor = "var(--accent)"; b.style.color = "var(--accent)"; }
+    b.addEventListener("click", () => { claimFilter = s; loadClaims(); });
+    filters.append(b);
+  });
+  const out = $("#claims-out"); out.innerHTML = "";
+  try {
+    const r = await api("/api/claims?status=" + encodeURIComponent(claimFilter));
+    if (!r.claims.length) { out.append(el("div", "empty", `No ${claimFilter} claims.`)); return; }
+    r.claims.forEach(c => out.append(claimCard(c)));
+  } catch (e) { fail(out, e); }
+}
+
+/* ---------- capture ---------- */
+$("#cap-go").addEventListener("click", async () => {
+  const target = $("#cap").value.trim();
+  const out = $("#cap-out");
+  if (!target) return;
+  $("#cap-go").disabled = true;
+  out.innerHTML = ""; out.append(el("p", "hint", "capturing and connecting…"));
+  try {
+    const r = await api("/api/capture", { target });
+    out.innerHTML = "";
+    const s = r.summary;
+    const delta = r.delta >= 0 ? "+" + fmt(r.delta) : fmt(r.delta);
+    const banner = el("div", "banner " + (r.delta >= 0 ? "ok" : "warn"),
+      `${s.notes} note(s), ${s.links} link(s), ${s.claims} claim(s)` +
+      (s.stubs ? `, ${s.stubs} stub(s)` : "") +
+      (s.kept ? `, ${s.kept} corrected note(s) left untouched` : "") +
+      ` · sharpness ${fmt(r.sharpness)} (${delta})`);
+    out.append(banner);
+    if (r.delta < 0) out.append(el("p", "hint",
+      "Sharpness dropped because new text starts out unlinked and unchecked. Verify its claims to earn it back."));
+    if (r.notes.length) {
+      out.append(el("h2", "sec", "Notes derived"));
+      const list = el("div", "list");
+      r.notes.forEach(n => list.append(noteItem(n)));
+      out.append(list);
+    }
+    if (r.claims.length) {
+      out.append(el("h2", "sec", `Now checkable (${r.claims.length})`));
+      const list = el("div", "list");
+      r.claims.forEach(c => list.append(claimCard(c, () => {})));
+      out.append(list);
+    }
+    $("#cap").value = "";
+    refreshGauge();
+  } catch (e) { fail(out, e); }
+  finally { $("#cap-go").disabled = false; }
+});
+
+/* ---------- notes ---------- */
+function noteItem(n) {
+  const b = el("button", "item");
+  const main = el("div", "item-main");
+  main.append(el("div", "item-title", plain(n.title)), el("div", "item-ex", plain(n.excerpt || "")));
+  const meta = el("div", "item-meta");
+  meta.append(el("span", null, "strength " + fmt(n.strength)),
+              el("span", null, `${n.uses} use(s)`),
+              el("span", null, `+${n.wins}/−${n.losses}`));
+  if (n.revision > 1) meta.append(el("span", null, "rev " + n.revision));
+  if (n.kind === "stub") meta.append(el("span", null, "stub — not yet written"));
+  main.append(meta);
+  b.append(main);
+  b.addEventListener("click", () => openNote(n.id));
+  return b;
+}
+
+let noteTimer = null;
+$("#nq").addEventListener("input", () => {
+  clearTimeout(noteTimer);
+  noteTimer = setTimeout(loadNotes, 180);
+});
+
+async function loadNotes() {
+  const out = $("#notes-out"); $("#note-detail").innerHTML = "";
+  try {
+    const r = await api("/api/notes?limit=60&q=" + encodeURIComponent($("#nq").value.trim()));
+    out.innerHTML = "";
+    if (!r.notes.length) { out.append(el("div", "empty", "No notes match.")); return; }
+    r.notes.forEach(n => out.append(noteItem(n)));
+  } catch (e) { fail(out, e); }
+}
+
+async function openNote(id) {
+  show("notes");
+  const host = $("#note-detail");
+  $("#notes-out").innerHTML = "";
+  host.innerHTML = ""; host.append(el("p", "hint", "loading note…"));
+  try {
+    const r = await api("/api/note?id=" + encodeURIComponent(id));
+    host.innerHTML = "";
+    const back = el("button", "btn ghost sm", "← all notes");
+    back.addEventListener("click", loadNotes);
+    host.append(back);
+
+    const card = el("div", "card");
+    card.style.marginTop = "12px";
+    const h = el("div", "row wrap");
+    h.style.alignItems = "baseline";
+    h.append(el("h1", null, r.note.title));
+    card.append(h);
+    const meta = el("div", "item-meta");
+    meta.append(el("span", null, "strength " + fmt(r.note.strength)),
+                el("span", null, "revision " + r.note.revision),
+                el("span", null, `${r.note.uses} use(s)`),
+                el("span", null, `+${r.note.wins}/−${r.note.losses}`));
+    if (r.source) meta.append(el("span", null, r.source.uri));
+    const nb = el("div", "note-body"); renderText(nb, r.note.body);
+    card.append(meta, nb);
+    host.append(card);
+
+    if (r.claims.length) {
+      host.append(el("h2", "sec", "Claims in this note"));
+      const list = el("div", "list");
+      r.claims.forEach(c => list.append(claimCard(c, () => openNote(id))));
+      host.append(list);
+    }
+
+    if (r.links.length) {
+      host.append(el("h2", "sec", `Linked to ${r.links.length}`));
+      const list = el("div", "list");
+      r.links.forEach(l => {
+        const b = el("button", "item");
+        const main = el("div", "item-main");
+        main.append(el("div", "item-title", l.title));
+        const m = el("div", "item-meta");
+        m.append(el("span", null, l.relation), el("span", null, l.origin),
+                 el("span", null, "weight " + fmt(l.weight)),
+                 el("span", null, l.direction === "out" ? "→" : "←"));
+        main.append(m); b.append(main);
+        b.addEventListener("click", () => openNote(l.id));
+        list.append(b);
+      });
+      host.append(list);
+    }
+
+    if (r.history.length) {
+      host.append(el("h2", "sec", `How this changed (${r.history.length})`));
+      r.history.forEach(c => {
+        const box = el("div", "card");
+        if (c.reason) box.append(el("p", "hint", "Reason: " + c.reason));
+        const d = el("div", "diff");
+        d.append(el("div", "before", c.before), el("div", "after", c.after));
+        box.append(d);
+        host.append(box);
+      });
+    }
+
+    host.append(el("h2", "sec", "Correct this note"));
+    const form = el("div", "card");
+    const ta = el("textarea");
+    ta.placeholder = "What is actually true now. The old version is kept, never overwritten.";
+    ta.value = "";
+    const reason = el("input"); reason.type = "text"; reason.placeholder = "why it changed";
+    const go = el("button", "btn", "Save correction");
+    const msg = el("span", "hint"); msg.style.alignSelf = "center";
+    go.addEventListener("click", async () => {
+      if (!ta.value.trim()) { msg.textContent = "Write the corrected text first."; return; }
+      go.disabled = true;
+      try {
+        await api("/api/correct", { note_id: id, body: ta.value, reason: reason.value });
+        refreshGauge();
+        openNote(id);
+      } catch (e) { msg.textContent = e.message; go.disabled = false; }
+    });
+    const row = el("div", "row wrap"); row.style.marginTop = "10px";
+    row.append(go, msg);
+    form.append(ta, reason, row);
+    reason.style.marginTop = "8px";
+    host.append(form);
+  } catch (e) { fail(host, e); }
+}
+
+/* ---------- map ---------- */
+let graph = null;
+const ORIGIN_COLOR = { wikilink: "--accent", manual: "--ok", overlap: "--dim", sequence: "--line" };
+
+async function loadMap() {
+  const note = $("#map-note");
+  try {
+    graph = await api("/api/graph?limit=140");
+    note.textContent = `${graph.nodes.length} note(s), ${graph.edges.length} link(s). Node size follows how many links a note has; brightness follows its earned strength.`;
+    layout();
+    drawMap();
+  } catch (e) { fail(note.parentElement, e); }
+}
+
+function layout() {
+  const n = graph.nodes.length;
+  if (!n) return;
+  // Seeded on a circle by degree, then relaxed: a few spring iterations give a
+  // readable shape without pulling in a physics library.
+  const cx = 450, cy = 260, R = 210;
+  const sorted = [...graph.nodes].sort((a, b) => b.degree - a.degree);
+  sorted.forEach((node, i) => {
+    const a = (i / n) * Math.PI * 2;
+    const r = R * (0.45 + 0.55 * (1 - node.degree / (sorted[0].degree || 1)));
+    node.x = cx + Math.cos(a) * r;
+    node.y = cy + Math.sin(a) * r;
+  });
+  const byId = new Map(graph.nodes.map(d => [d.id, d]));
+  for (let step = 0; step < 220; step++) {
+    for (const e of graph.edges) {
+      const a = byId.get(e.source), b = byId.get(e.target);
+      if (!a || !b) continue;
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const dist = Math.hypot(dx, dy) || 0.01;
+      const pull = (dist - 90) * 0.012 * (0.4 + e.weight);
+      a.x += dx / dist * pull; a.y += dy / dist * pull;
+      b.x -= dx / dist * pull; b.y -= dy / dist * pull;
+    }
+    for (let i = 0; i < graph.nodes.length; i++) {
+      for (let j = i + 1; j < graph.nodes.length; j++) {
+        const a = graph.nodes[i], b = graph.nodes[j];
+        const dx = b.x - a.x, dy = b.y - a.y;
+        const d2 = dx * dx + dy * dy;
+        if (d2 > 6400 || d2 === 0) continue;
+        const d = Math.sqrt(d2), push = (80 - d) * 0.05;
+        a.x -= dx / d * push; a.y -= dy / d * push;
+        b.x += dx / d * push; b.y += dy / d * push;
+      }
+    }
+    for (const node of graph.nodes) {
+      node.x += (cx - node.x) * 0.002;
+      node.y += (cy - node.y) * 0.002;
+    }
+  }
+  fit();
+}
+
+/* Relaxation leaves the graph wherever it settles, which was a clump in one
+   corner. Rescale it into the drawing area so the canvas is actually used. */
+function fit(pad = 46) {
+  const xs = graph.nodes.map(d => d.x), ys = graph.nodes.map(d => d.y);
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  const minY = Math.min(...ys), maxY = Math.max(...ys);
+  const spanX = Math.max(1, maxX - minX), spanY = Math.max(1, maxY - minY);
+  const k = Math.min((900 - pad * 2) / spanX, (520 - pad * 2) / spanY);
+  const offX = (900 - spanX * k) / 2, offY = (520 - spanY * k) / 2;
+  for (const d of graph.nodes) {
+    d.x = (d.x - minX) * k + offX;
+    d.y = (d.y - minY) * k + offY;
+  }
+}
+
+function drawMap() {
+  const cv = $("#cv");
+  if (!graph || !graph.nodes.length) return;
+  const css = getComputedStyle(document.documentElement);
+  const tok = name => css.getPropertyValue(name).trim() || "#888";
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const w = cv.clientWidth || 900, h = Math.round(w * 520 / 900);
+  cv.width = w * dpr; cv.height = h * dpr;
+  cv.style.height = h + "px";
+  const c = cv.getContext("2d");
+  c.setTransform(dpr, 0, 0, dpr, 0, 0);
+  c.clearRect(0, 0, w, h);
+  const sx = w / 900, sy = h / 520;
+  const X = d => d.x * sx, Y = d => d.y * sy;
+  const byId = new Map(graph.nodes.map(d => [d.id, d]));
+
+  for (const e of graph.edges) {
+    const a = byId.get(e.source), b = byId.get(e.target);
+    if (!a || !b) continue;
+    c.strokeStyle = tok(ORIGIN_COLOR[e.origin] || "--line");
+    const explicit = e.origin === "wikilink" || e.origin === "manual";
+    c.globalAlpha = explicit ? 0.95 : (e.origin === "sequence" ? 0.4 : 0.10 + e.weight * 0.22);
+    c.lineWidth = explicit ? 1.8 : 0.9;
+    c.beginPath(); c.moveTo(X(a), Y(a)); c.lineTo(X(b), Y(b)); c.stroke();
+  }
+  c.globalAlpha = 1;
+  const maxDeg = Math.max(1, ...graph.nodes.map(d => d.degree));
+  for (const d of graph.nodes) {
+    const rad = 3.5 + 7 * Math.sqrt(d.degree / maxDeg);
+    c.beginPath(); c.arc(X(d), Y(d), rad, 0, Math.PI * 2);
+    c.fillStyle = d.kind === "stub" ? tok("--warn") : tok("--accent");
+    c.globalAlpha = 0.45 + Math.min(0.55, d.strength / 5);
+    c.fill();
+    c.globalAlpha = 1;
+    c.lineWidth = 1; c.strokeStyle = tok("--surface"); c.stroke();
+  }
+  c.globalAlpha = 1;
+  c.font = "11px ui-monospace, Menlo, Consolas, monospace";
+  c.textBaseline = "middle";
+  // Label the best-connected notes, skipping any label that would land on one
+  // already drawn: overlapping labels are worse than no label.
+  const placed = [];
+  const candidates = [...graph.nodes].sort((a, b) => b.degree - a.degree);
+  let drawn = 0;
+  for (const d of candidates) {
+    if (drawn >= 14) break;
+    const t = plain(d.title, 24);
+    const tw = c.measureText(t).width;
+    const box = { x: X(d) + 10, y: Y(d) - 7, w: tw + 6, h: 14 };
+    if (box.x + box.w > w - 4 || box.y < 2 || box.y + box.h > h - 2) continue;
+    if (placed.some(o => box.x < o.x + o.w && box.x + box.w > o.x && box.y < o.y + o.h && box.y + box.h > o.y)) continue;
+    c.fillStyle = tok("--surface");
+    c.globalAlpha = 0.82;
+    c.fillRect(box.x - 3, box.y, box.w, box.h);
+    c.globalAlpha = 1;
+    c.fillStyle = tok("--muted");
+    c.fillText(t, box.x, Y(d));
+    placed.push(box);
+    drawn++;
+  }
+}
+window.addEventListener("resize", () => { if (currentView === "map") drawMap(); });
+$("#cv").addEventListener("click", ev => {
+  if (!graph) return;
+  const cv = $("#cv");
+  const rect = cv.getBoundingClientRect();
+  const sx = (cv.clientWidth || 900) / 900, sy = parseFloat(cv.style.height || "520") / 520;
+  const mx = ev.clientX - rect.left, my = ev.clientY - rect.top;
+  let best = null, bestD = 18;
+  for (const d of graph.nodes) {
+    const dist = Math.hypot(d.x * sx - mx, d.y * sy - my);
+    if (dist < bestD) { bestD = dist; best = d; }
+  }
+  if (best) openNote(best.id);
+});
+
+/* ---------- views ---------- */
+let currentView = "ask";
+const LOADERS = { claims: loadClaims, notes: loadNotes, map: loadMap };
+function show(view) {
+  currentView = view;
+  ["ask", "capture", "claims", "notes", "map"].forEach(v => {
+    $("#view-" + v).hidden = v !== view;
+  });
+  document.querySelectorAll("#nav button").forEach(b => {
+    b.setAttribute("aria-current", String(b.dataset.view === view));
+  });
+  if (LOADERS[view]) LOADERS[view]();
+}
+$("#nav").addEventListener("click", e => {
+  const b = e.target.closest("button[data-view]");
+  if (b) show(b.dataset.view);
+});
+
+/* ---------- boot ---------- */
+(async function boot() {
+  const s = await refreshGauge();
+  const ex = $("#q-examples");
+  const samples = (s && s.counts.notes)
+    ? ["what did we decide", "why", "open questions", "latency"]
+    : [];
+  samples.forEach(t => {
+    const b = el("button", "chip", t);
+    b.addEventListener("click", () => { $("#q").value = t; doAsk(); });
+    ex.append(b);
+  });
+  if (s && !s.counts.notes) {
+    show("capture");
+    $("#cap-out").append(el("div", "banner ok",
+      "This brain is empty. Capture something — a paste, a file path, a folder of markdown, or a URL."));
+  }
+})();
+</script>
+</body>
+</html>
