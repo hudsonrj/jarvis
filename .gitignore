@@ -1,1 +1,9 @@
 .env
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Second brain database (default lives in ~/.jarvis, but BRAIN_DB may point here)
+*.db
+*.db-wal
+*.db-shm

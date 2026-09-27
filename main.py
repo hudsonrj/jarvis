@@ -18,6 +18,7 @@ from tools.arp_scan import arp_scan_terminal
 from tools.duckduckgo import duckduckgo_search_tool
 from tools.matrix import matrix_mode
 from tools.screenshot import take_screenshot
+from tools.brain import BRAIN_TOOLS, close_brain
 
 load_dotenv()
 
@@ -39,14 +40,37 @@ llm = ChatOllama(model="qwen3:1.7b", reasoning=False)
 # llm = ChatOpenAI(model="gpt-4o-mini", api_key=api_key, organization=org_id) for openai
 
 # Tool list
-tools = [get_time, arp_scan_terminal, read_text_from_latest_image, duckduckgo_search_tool, matrix_mode, take_screenshot]
+tools = [
+    get_time,
+    arp_scan_terminal,
+    read_text_from_latest_image,
+    duckduckgo_search_tool,
+    matrix_mode,
+    take_screenshot,
+    *BRAIN_TOOLS,  # capture, recall, correct, feedback, status, open questions
+]
 
 # Tool-calling prompt
 prompt = ChatPromptTemplate.from_messages(
     [
         (
             "system",
-            "You are Jarvis, an intelligent, conversational AI assistant. Your goal is to be helpful, friendly, and informative. You can respond in natural, human-like language and use tools when needed to answer questions more accurately. Always explain your reasoning simply when appropriate, and keep your responses conversational and concise.",
+            "You are Jarvis, an intelligent, conversational AI assistant. Your goal is to be helpful, "
+            "friendly, and informative. You can respond in natural, human-like language and use tools "
+            "when needed to answer questions more accurately. Always explain your reasoning simply when "
+            "appropriate, and keep your responses conversational and concise."
+            "\n\n"
+            "You have a second brain that persists between sessions. Use it:"
+            "\n- Call brain_recall BEFORE answering anything about the user, their projects, decisions "
+            "or anything they told you in an earlier session. If it returns nothing, say you do not know "
+            "instead of guessing."
+            "\n- Call brain_remember when the user states a fact, decision or preference worth keeping, "
+            "or asks you to remember something."
+            "\n- Call brain_correct when the user says you were wrong or that something has changed. "
+            "This is how the brain gets sharper, so never skip it."
+            "\n- Call brain_feedback after a recall when the user signals it was or was not what they meant."
+            "\nWhen you answer from recalled context, say where it came from. Never present a weak match "
+            "as a certainty.",
         ),
         ("human", "{input}"),
         ("placeholder", "{agent_scratchpad}"),
@@ -138,4 +162,8 @@ def write():
 
 
 if __name__ == "__main__":
-    write()
+    try:
+        write()
+    finally:
+        # Flush and close the brain file so nothing is lost on exit.
+        close_brain()

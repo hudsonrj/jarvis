@@ -15,3 +15,10 @@ PyAudio==0.2.14
 mss==10.0.0
 duckduckgo-search==8.1.1
 pytesseract==0.3.13
+
+# The brain/ package itself needs nothing beyond the standard library.
+# Semantic recall uses Ollama embeddings when available and falls back to an
+# offline embedder otherwise:  ollama pull nomic-embed-text
+
+# Development only:
+# pytest==9.1.1
