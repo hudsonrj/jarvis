@@ -299,6 +299,12 @@ Six tools are registered on the agent in `main.py`:
 Replies are written to be spoken: no markdown, no ids read aloud, and an
 explicit *I don't know* when nothing is stored.
 
+### Deployed on a machine
+
+`deploy/install.sh` installs it as a systemd service under `/root/apps`. Because
+the package is pure standard library, the deploy is a directory copy and a unit
+file — no virtualenv, no build. See [`deploy/README.md`](../deploy/README.md).
+
 ### From the web app
 
 ```bash
@@ -363,7 +369,7 @@ with Brain(profile="researcher") as b:
 
 | Variable | Default | Effect |
 |---|---|---|
-| `BRAIN_DB` | `~/.jarvis/brain.db` | Where the brain lives |
+| `BRAIN_DB` | `~/.jarvis/brain.db` | Where the brain lives. Read by the web app, the command line and the voice tools alike, so all three open the same file. |
 | `BRAIN_PROFILE` | `default` | Recall tuning for the Jarvis tools |
 | `BRAIN_EMBED_MODEL` | `nomic-embed-text` | Ollama embedding model |
 | `BRAIN_USE_OLLAMA_EMBED` | `1` | `0` forces the offline embedder |

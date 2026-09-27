@@ -30,7 +30,11 @@ def build_parser() -> argparse.ArgumentParser:
         prog="python -m brain",
         description="A second brain that gets sharper after every session.",
     )
-    parser.add_argument("--db", default=None, help="path to the brain file (default ~/.jarvis/brain.db)")
+    parser.add_argument(
+        "--db",
+        default=None,
+        help="path to the brain file (default: $BRAIN_DB, else ~/.jarvis/brain.db)",
+    )
     parser.add_argument(
         "--profile",
         default="default",

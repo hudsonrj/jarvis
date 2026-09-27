@@ -214,3 +214,29 @@ def test_reconnect_reports_the_notes_it_preserved(brain, latency_doc):
         note = brain.learn_from(latency_doc).notes[0]
         brain.correct(note.id, "A corrected body that supersedes what the source said.")
     assert note.id in {n.id for n in brain.reconnect_all().kept}
+
+
+def test_brain_db_env_var_decides_the_default_path(tmp_path, monkeypatch, embedder):
+    """A systemd unit sets BRAIN_DB; every entry point must honour it."""
+    target = tmp_path / "from-env.db"
+    monkeypatch.setenv("BRAIN_DB", str(target))
+    with Brain(embedder=embedder) as b:
+        assert b.store.path == target
+        b.remember("Deployed", "The brain file must land where BRAIN_DB points.")
+    assert target.exists()
+
+
+def test_an_explicit_path_beats_the_env_var(tmp_path, monkeypatch, embedder):
+    monkeypatch.setenv("BRAIN_DB", str(tmp_path / "ignored.db"))
+    chosen = tmp_path / "chosen.db"
+    with Brain(chosen, embedder=embedder) as b:
+        assert b.store.path == chosen
+    assert chosen.exists()
+    assert not (tmp_path / "ignored.db").exists()
+
+
+def test_a_tilde_path_is_expanded(monkeypatch, embedder, tmp_path):
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("BRAIN_DB", "~/nested/brain.db")
+    with Brain(embedder=embedder) as b:
+        assert b.store.path == tmp_path / "nested" / "brain.db"

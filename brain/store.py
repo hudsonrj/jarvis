@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import sqlite3
 from pathlib import Path
 from typing import Any, Iterable, Sequence
@@ -26,7 +27,18 @@ from .models import (
 from .text import fts_query as _fts_query
 from .text import stem, tokens as _tokens
 
-DEFAULT_PATH = Path.home() / ".jarvis" / "brain.db"
+FALLBACK_PATH = Path.home() / ".jarvis" / "brain.db"
+
+
+def default_path() -> Path:
+    """Where the brain lives when no path is given.
+
+    ``BRAIN_DB`` is read here rather than in each entry point, so the voice
+    tools, the command line and the web app always agree on which file they are
+    opening. They did not, once: a systemd unit set BRAIN_DB and the server
+    quietly opened the default file instead.
+    """
+    return Path(os.environ.get("BRAIN_DB") or FALLBACK_PATH).expanduser()
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS sources (
@@ -160,7 +172,7 @@ class Store:
         caller's job not to interleave two writes.
         """
         self.same_thread = same_thread
-        self.path = Path(path) if path else DEFAULT_PATH
+        self.path = Path(path).expanduser() if path else default_path()
         if str(self.path) != ":memory:":
             self.path.parent.mkdir(parents=True, exist_ok=True)
         self.db = sqlite3.connect(str(self.path), check_same_thread=same_thread)

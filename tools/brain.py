@@ -33,7 +33,8 @@ def get_brain() -> Brain:
     """One long-lived brain per process, opened on first use."""
     global _brain
     if _brain is None:
-        _brain = Brain(os.getenv("BRAIN_DB") or None, profile=_profile)
+        # The path comes from BRAIN_DB via brain.store.default_path().
+        _brain = Brain(profile=_profile)
         logger.info(
             "🧠 brain open at %s (profile=%s, embedder=%s)",
             _brain.store.path,

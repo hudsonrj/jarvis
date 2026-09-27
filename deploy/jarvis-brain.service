@@ -1,0 +1,32 @@
+[Unit]
+Description=Jarvis second brain (web app)
+Documentation=https://github.com/hudsonrj/jarvis/blob/main/docs/SECOND_BRAIN.md
+After=network-online.target tailscaled.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=__APP_DIR__
+Environment=PYTHONUNBUFFERED=1
+Environment=BRAIN_DB=__DATA_DIR__/brain.db
+# Ollama gives real semantic recall. When it is not running the brain falls back
+# to its offline embedder on its own, so this is safe to leave set.
+Environment=OLLAMA_HOST=http://127.0.0.1:11434
+Environment=BRAIN_EMBED_MODEL=nomic-embed-text
+ExecStart=/usr/bin/env python3 -m brain serve --host __BIND_HOST__ --port __PORT__
+Restart=on-failure
+RestartSec=3
+
+# The app only ever needs its own directory and its database.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=__DATA_DIR__
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+
+[Install]
+WantedBy=multi-user.target
