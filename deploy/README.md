@@ -58,12 +58,37 @@ python3 -m brain --session "first load" learn ~/notes      # a folder of markdow
 python3 -m brain status
 ```
 
-## Two things to know before exposing it
+## Logging in
 
-**The app has no authentication.** Anyone who can reach the port can read every
-note and rewrite any of them. Binding to a Tailscale address means your tailnet
-is the boundary, which is a reasonable place to draw it for a personal tool — but
-every device on that tailnet is inside it. Do not bind it to `0.0.0.0` on a
+The installer generates a token and prints it once. In the browser, leave the
+**username blank** and paste the token as the **password**; browsers remember it.
+
+```bash
+curl -u ":$TOKEN" http://100.119.119.83:8787/api/state
+```
+
+The token lives in `data/env` with mode 600, and the unit reads it through
+`EnvironmentFile`, so it is not in the unit and not in `ps` output. Reinstalling
+keeps the existing token, so a browser that already remembers it keeps working.
+
+```bash
+sudo ./deploy/install.sh --token "$(openssl rand -base64 24)"   # set your own
+sudo ./deploy/install.sh --no-token                             # turn it off
+sed -n 's/^BRAIN_TOKEN=//p' /root/apps/jarvis-brain/data/env    # read it back
+```
+
+To rotate it: delete `data/env`, run the installer again, and it makes a new one.
+
+The token is sent as HTTP Basic auth on every request, so on plain HTTP it is
+only as private as the network. Over a tailnet the traffic is already encrypted
+between devices, which is what this is for. Anywhere less private, put it behind
+a reverse proxy with TLS.
+
+## One thing to know before exposing it
+
+Binding to a Tailscale address means your tailnet is the boundary — a reasonable
+place to draw it for a personal tool, though every device on that tailnet is
+inside it, which is why the token is on by default. Do not bind to `0.0.0.0` on a
 machine with a public address; the installer warns when you try.
 
 **Semantic recall wants Ollama.** The unit points `OLLAMA_HOST` at

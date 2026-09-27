@@ -276,3 +276,91 @@ def test_path_traversal_is_refused(server):
 def test_favicon_is_answered_not_missing(server):
     with urllib.request.urlopen(server + "/favicon.ico", timeout=10) as r:
         assert r.status == 204
+
+
+# --- token ----------------------------------------------------------------
+
+
+@pytest.fixture
+def locked(embedder, latency_doc):
+    brain = Brain(":memory:", embedder=embedder, same_thread=False)
+    brain.learn_from(latency_doc)
+    httpd = serve(brain, host="127.0.0.1", port=0, token="s3cr3t-token")
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    yield f"http://127.0.0.1:{httpd.server_address[1]}"
+    httpd.shutdown()
+    httpd.server_close()
+    brain.close()
+
+
+def _basic(password: str) -> dict[str, str]:
+    import base64
+
+    raw = base64.b64encode(f":{password}".encode()).decode()
+    return {"Authorization": f"Basic {raw}"}
+
+
+def _request(url: str, headers: dict[str, str], data: bytes | None = None) -> int:
+    req = urllib.request.Request(url, data=data, headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=10) as r:
+            return r.status
+    except urllib.error.HTTPError as e:
+        e.read()
+        return e.code
+
+
+def test_without_a_token_every_route_is_refused(locked):
+    assert _request(locked + "/", {}) == 401
+    assert _request(locked + "/api/state", {}) == 401
+    assert _request(locked + "/api/ask", {"Content-Type": "application/json"}, b'{"query":"x"}') == 401
+
+
+def test_the_challenge_names_basic_auth(locked):
+    try:
+        urllib.request.urlopen(locked + "/api/state", timeout=10)
+        raise AssertionError("should have been refused")
+    except urllib.error.HTTPError as e:
+        assert e.code == 401
+        assert e.headers.get("WWW-Authenticate", "").startswith("Basic ")
+
+
+def test_a_wrong_token_is_refused(locked):
+    assert _request(locked + "/api/state", _basic("wrong")) == 401
+    assert _request(locked + "/api/state", _basic("")) == 401
+    assert _request(locked + "/api/state", {"Authorization": "Bearer s3cr3t-token"}) == 401
+    assert _request(locked + "/api/state", {"Authorization": "Basic not-base64!!"}) == 401
+
+
+def test_the_right_token_is_let_through(locked):
+    assert _request(locked + "/", _basic("s3cr3t-token")) == 200
+    assert _request(locked + "/api/state", _basic("s3cr3t-token")) == 200
+
+
+def test_the_username_is_ignored(locked):
+    import base64
+
+    raw = base64.b64encode(b"anybody:s3cr3t-token").decode()
+    assert _request(locked + "/api/state", {"Authorization": f"Basic {raw}"}) == 200
+
+
+def test_a_refused_post_does_not_desync_the_connection(locked):
+    """The body has to be drained, or keep-alive reuses a dirty socket."""
+    headers = {"Content-Type": "application/json"}
+    assert _request(locked + "/api/capture", headers, b'{"target":"' + b"x" * 5000 + b'"}') == 401
+    assert _request(locked + "/api/state", _basic("s3cr3t-token")) == 200
+
+
+def test_no_token_configured_means_no_login(server):
+    assert _request(server + "/api/state", {}) == 200
+
+
+def test_the_token_comes_from_the_environment(monkeypatch):
+    from brain.webapp import make_token
+
+    monkeypatch.setenv("BRAIN_TOKEN", "  from-env  ")
+    assert make_token() == "from-env"
+    assert make_token("explicit") == "explicit"
+    monkeypatch.delenv("BRAIN_TOKEN")
+    assert make_token() == ""

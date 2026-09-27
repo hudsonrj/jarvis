@@ -42,8 +42,8 @@ python -m brain serve          # http://localhost:8787
 
 Ask and read a cited answer with its five recall signals drawn per hit, capture a
 source, verify the open claims, correct a note and see the before/after, and walk
-the graph. Built on `http.server` — no dependency, no CDN, works offline. It binds
-to localhost and has no authentication.
+the graph. Built on `http.server` — no dependency, no CDN, works offline. It binds to
+localhost; set `BRAIN_TOKEN` to require a login when you put it on a network.
 
 There is also a command line:
 
@@ -133,7 +133,7 @@ pip install pytest
 python -m pytest tests/ -q
 ```
 
-193 tests. The suite needs no network and no model server.
+204 tests. The suite needs no network and no model server.
 
 ---
 

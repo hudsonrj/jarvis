@@ -327,10 +327,15 @@ cheapest next move are always in sight.
 It is built on `http.server`, so the app adds no dependency, and it works with
 no network at all: no CDN, no web fonts, no external anything.
 
-**It binds to 127.0.0.1 and has no authentication.** Anyone who can reach the
-port has full read and write access to the brain. `--host` exists for putting it
-on a machine you reach over a tailnet or an SSH tunnel; it is not a reason to put
-it on the open internet.
+**It binds to 127.0.0.1.** A token is optional and off by default, because a
+brain on localhost does not need one. Set `BRAIN_TOKEN` (or `--token`) and every
+request must carry it as HTTP Basic auth — username blank, token as the password,
+compared in constant time. `deploy/install.sh` generates one and turns it on,
+since a deployed brain is reachable by every device on the network it is bound to.
+
+Basic auth sends the token on every request, so on plain HTTP it is only as
+private as the network. Over a tailnet that traffic is already encrypted between
+devices. Anywhere less private, put it behind a reverse proxy with TLS.
 
 ### From the command line
 
@@ -372,6 +377,7 @@ with Brain(profile="researcher") as b:
 | `BRAIN_DB` | `~/.jarvis/brain.db` | Where the brain lives. Read by the web app, the command line and the voice tools alike, so all three open the same file. |
 | `BRAIN_PROFILE` | `default` | Recall tuning for the Jarvis tools |
 | `BRAIN_EMBED_MODEL` | `nomic-embed-text` | Ollama embedding model |
+| `BRAIN_TOKEN` | *(unset)* | When set, the web app requires it as HTTP Basic auth |
 | `BRAIN_USE_OLLAMA_EMBED` | `1` | `0` forces the offline embedder |
 | `OLLAMA_HOST` | `http://localhost:11434` | Ollama endpoint |
 
@@ -422,7 +428,7 @@ Stated plainly, because a memory system that oversells itself is worse than none
 pip install pytest && python -m pytest tests/ -q
 ```
 
-193 tests, no network, no model server — `BRAIN_USE_OLLAMA_EMBED=0` is set in
+204 tests, no network, no model server — `BRAIN_USE_OLLAMA_EMBED=0` is set in
 `tests/conftest.py`, and the hashed embedder is deterministic.
 
 The ones worth reading first, because they pin the behaviour the design is

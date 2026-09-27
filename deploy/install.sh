@@ -4,6 +4,8 @@
 #   sudo ./deploy/install.sh                       # bind to the Tailscale address
 #   sudo ./deploy/install.sh --host 0.0.0.0        # every interface (read the warning)
 #   sudo ./deploy/install.sh --port 9000 --dir /root/apps/brain
+#   sudo ./deploy/install.sh --token hunter2   # use this token instead of a new one
+#   sudo ./deploy/install.sh --no-token        # no login at all
 #
 # Safe to run again: it updates the files in place and restarts the service.
 set -euo pipefail
@@ -14,6 +16,7 @@ PORT="8787"
 BIND_HOST=""
 SERVICE="jarvis-brain"
 NO_START=0
+TOKEN=""
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -22,6 +25,8 @@ while [ $# -gt 0 ]; do
     --host) BIND_HOST="$2"; shift 2 ;;
     --name) SERVICE="$2"; shift 2 ;;
     --no-start) NO_START=1; shift ;;
+    --token) TOKEN="$2"; shift 2 ;;
+    --no-token) TOKEN="none"; shift ;;
     -h|--help) sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "unknown option: $1" >&2; exit 2 ;;
   esac
@@ -75,9 +80,9 @@ fi
 say "binding to $BIND_HOST:$PORT"
 case "$BIND_HOST" in
   127.0.0.1|localhost) ;;
-  100.*) say "reachable from every device on your tailnet, and the app has no login of its own" ;;
+  100.*) say "reachable from every device on your tailnet" ;;
   *) printf '\033[33mwarning:\033[0m %s\n' \
-       "$BIND_HOST is not a Tailscale address. The app has NO authentication — anyone who can reach this port can read and rewrite the brain." ;;
+       "$BIND_HOST is not a Tailscale address; this port may be reachable from further away than you expect." ;;
 esac
 
 # --- install --------------------------------------------------------------
@@ -91,6 +96,28 @@ cp -r "$SRC/docs" "$APP_DIR/docs" 2>/dev/null || true
 cp -r "$SRC/examples" "$APP_DIR/examples" 2>/dev/null || true
 find "$APP_DIR" -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
 chmod -R go-rwx "$APP_DIR"
+
+# --- token ----------------------------------------------------------------
+# Generated once and reused, so redeploying does not silently lock you out of a
+# browser that already remembers the old one.
+ENV_FILE="$DATA_DIR/env"
+if [ "$TOKEN" = "none" ]; then
+  rm -f "$ENV_FILE"
+  say "no token — anyone who can reach $BIND_HOST:$PORT has full access"
+elif [ -n "$TOKEN" ]; then
+  printf 'BRAIN_TOKEN=%s\n' "$TOKEN" > "$ENV_FILE"
+  chmod 600 "$ENV_FILE"
+  say "token set from --token"
+elif [ -s "$ENV_FILE" ]; then
+  TOKEN="$(sed -n 's/^BRAIN_TOKEN=//p' "$ENV_FILE" | head -1)"
+  say "keeping the existing token in $ENV_FILE"
+else
+  TOKEN="$(python3 -c 'from brain.webapp import new_token; print(new_token())' 2>/dev/null \
+           || python3 -c 'import secrets; print(secrets.token_urlsafe(24))')"
+  printf 'BRAIN_TOKEN=%s\n' "$TOKEN" > "$ENV_FILE"
+  chmod 600 "$ENV_FILE"
+  say "generated a token"
+fi
 
 say "writing /etc/systemd/system/$SERVICE.service"
 sed -e "s|__APP_DIR__|$APP_DIR|g" \
@@ -126,6 +153,12 @@ PY
   then
     say "up at http://$BIND_HOST:$PORT"
     echo
+    if [ "$TOKEN" != "none" ] && [ -n "$TOKEN" ]; then
+      echo "  log in:    leave the username blank, password is the token below"
+      echo "  token:     $TOKEN"
+      echo "             (also in $ENV_FILE, mode 600)"
+      echo
+    fi
     echo "  database:  $DATA_DIR/brain.db"
     echo "  logs:      journalctl -u $SERVICE -f"
     echo "  restart:   systemctl restart $SERVICE"

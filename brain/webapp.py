@@ -7,15 +7,28 @@ ask a question and read the cited brief, say whether it helped, verify the open
 claims, correct a note that has gone stale, and watch sharpness move.
 
 Built on ``http.server`` so the package keeps its no-dependency promise. It binds
-to localhost by default and holds no authentication of its own: it is a personal
-tool on a personal machine, and exposing it on a network would hand anyone who
-can reach it full read and write access to the brain.
+to localhost by default.
+
+A token is optional and off by default, because a brain on localhost does not
+need one. Set ``BRAIN_TOKEN`` (or pass ``--token``) and every request must carry
+it as HTTP Basic auth, with the token as the password and any username. Browsers
+prompt for it and remember it; ``curl -u :$BRAIN_TOKEN`` works too. The token is
+compared in constant time.
+
+Basic auth sends the token on every request, so plain HTTP over an untrusted
+network would leak it. Over a tailnet that traffic is already encrypted between
+devices, which is the case this is meant for. On anything less private, put it
+behind a reverse proxy with TLS.
 """
 
 from __future__ import annotations
 
+import base64
+import hmac
 import json
 import mimetypes
+import os
+import secrets
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -315,7 +328,16 @@ class NotFound(Exception):
     status = 404
 
 
-def make_handler(service: BrainService) -> type[BaseHTTPRequestHandler]:
+def make_token(explicit: str | None = None) -> str:
+    """The configured token, or empty when the app should stay open."""
+    return (explicit if explicit is not None else os.environ.get("BRAIN_TOKEN", "")).strip()
+
+
+def new_token(nbytes: int = 24) -> str:
+    return secrets.token_urlsafe(nbytes)
+
+
+def make_handler(service: BrainService, token: str = "") -> type[BaseHTTPRequestHandler]:
     routes_get: dict[str, Callable[[dict[str, list[str]]], dict[str, Any]]] = {
         "/api/state": lambda q: service.state(),
         "/api/notes": lambda q: service.notes(_one(q, "q"), _int(q, "limit", 50)),
@@ -344,7 +366,34 @@ def make_handler(service: BrainService) -> type[BaseHTTPRequestHandler]:
         server_version = "jarvis-brain"
         protocol_version = "HTTP/1.1"
 
+        def _authorized(self) -> bool:
+            if not token:
+                return True
+            header = self.headers.get("Authorization", "")
+            if not header.startswith("Basic "):
+                return False
+            try:
+                decoded = base64.b64decode(header[6:], validate=True).decode("utf-8")
+            except (ValueError, UnicodeDecodeError):
+                return False
+            _user, _, supplied = decoded.partition(":")
+            # Constant time: a timing difference here leaks the token one byte
+            # at a time to anyone who can reach the port.
+            return hmac.compare_digest(supplied, token)
+
+        def _challenge(self) -> None:
+            self.send_response(401)
+            self.send_header("WWW-Authenticate", 'Basic realm="Second Brain", charset="UTF-8"')
+            body = b'{"error": "this brain needs a token"}'
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
         def do_GET(self) -> None:  # noqa: N802
+            if not self._authorized():
+                self._challenge()
+                return
             parsed = urlparse(self.path)
             if parsed.path.startswith("/api/"):
                 handler = routes_get.get(parsed.path)
@@ -356,6 +405,13 @@ def make_handler(service: BrainService) -> type[BaseHTTPRequestHandler]:
             self._static(parsed.path)
 
         def do_POST(self) -> None:  # noqa: N802
+            if not self._authorized():
+                # Drain the body first, or the connection desyncs on keep-alive.
+                pending = int(self.headers.get("Content-Length") or 0)
+                if 0 < pending <= MAX_BODY:
+                    self.rfile.read(pending)
+                self._challenge()
+                return
             parsed = urlparse(self.path)
             handler = routes_post.get(parsed.path)
             if handler is None:
@@ -430,20 +486,28 @@ def serve(
     brain: Brain,
     host: str = "127.0.0.1",
     port: int = 8787,
+    token: str | None = None,
 ) -> ThreadingHTTPServer:
     """Build the server. The caller decides whether to block on it."""
-    handler = make_handler(BrainService(brain))
+    handler = make_handler(BrainService(brain), token=make_token(token))
     return ThreadingHTTPServer((host, port), handler)
 
 
-def run(brain: Brain, host: str = "127.0.0.1", port: int = 8787) -> None:
-    httpd = serve(brain, host=host, port=port)
+def run(
+    brain: Brain,
+    host: str = "127.0.0.1",
+    port: int = 8787,
+    token: str | None = None,
+) -> None:
+    resolved = make_token(token)
+    httpd = serve(brain, host=host, port=port, token=resolved)
     shown = "localhost" if host in {"127.0.0.1", "0.0.0.0"} else host
     print(f"second brain at http://{shown}:{port}")
     print(f"  file:     {brain.store.path}")
     print(f"  profile:  {brain.profile}   embedder: {brain.embedder.name}")
-    if host not in {"127.0.0.1", "localhost"}:
-        print("  WARNING: reachable beyond this machine, and it has no authentication")
+    print(f"  auth:     {'token required' if resolved else 'open — anyone who can reach the port'}")
+    if host not in {"127.0.0.1", "localhost"} and not resolved:
+        print("  WARNING: reachable beyond this machine with no token. Set BRAIN_TOKEN.")
     print("  ctrl-c to stop")
     try:
         httpd.serve_forever()

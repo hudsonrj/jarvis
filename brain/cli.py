@@ -97,7 +97,10 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("serve", help="open the web app for this brain")
     p.add_argument("--port", type=int, default=8787)
     p.add_argument("--host", default="127.0.0.1",
-                   help="bind address; anything but localhost exposes the brain with no auth")
+                   help="bind address; anything but localhost exposes the brain")
+    p.add_argument("--token", default=None,
+                   help="require this token (HTTP Basic, any user). Default: $BRAIN_TOKEN, "
+                        "and no token at all means no login")
 
     sub.add_parser("status", help="sharpness, counts, and the cheapest next move")
     sub.add_parser("trend", help="sharpness session over session")
@@ -257,7 +260,7 @@ def _dispatch(brain: Brain, args: argparse.Namespace) -> int:
     if args.cmd == "serve":
         from .webapp import run as run_web
 
-        run_web(brain, host=args.host, port=args.port)
+        run_web(brain, host=args.host, port=args.port, token=args.token)
         return 0
 
     if args.cmd == "reconnect":

@@ -13,6 +13,9 @@ Environment=BRAIN_DB=__DATA_DIR__/brain.db
 # to its offline embedder on its own, so this is safe to leave set.
 Environment=OLLAMA_HOST=http://127.0.0.1:11434
 Environment=BRAIN_EMBED_MODEL=nomic-embed-text
+# The token lives in a file with mode 600, not in this unit and not in the
+# process arguments, so it does not show up in `systemctl cat` or in `ps`.
+EnvironmentFile=-__DATA_DIR__/env
 ExecStart=/usr/bin/env python3 -m brain serve --host __BIND_HOST__ --port __PORT__
 Restart=on-failure
 RestartSec=3
